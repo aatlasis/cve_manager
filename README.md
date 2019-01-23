@@ -47,42 +47,61 @@ Usage examples:
   ./cve_management.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -dd
 
 Complete list of supported arguments:
+
   -h, --help            show this help message and exit
+  
   -v, --version         show program's version number and exit
+  
   -p, --parse           Process downloaded CVEs.
+  
   -d, --download        Download CVEs.
+  
   -csv, --cvs_files     Create CSVs files.
+  
   -idb, --import_to_db  Import CVEs into a database.
+  
   -i INPUT, --input INPUT
-                        The directory where NVD json files will been
-                        downloaded, and the one from where they will be parsed
-                        (default: nvd/
+                        The directory where NVD json files will been downloaded, and the one from where they will be parsed
+                        (default: nvd/)
+                        
   -o RESULTS, --output RESULTS
-                        The directory where the csv files will be stored
-                        (default: results/
+                        The directory where the csv files will be stored (default: results/)
+                        
   -u USER, --user USER  The user to connect to the database.
+  
   -ow OWNER, --owner OWNER
-                        The owner of the database (if different from the
-                        connected user).
+                        The owner of the database (if different from the connected user).
+                        
   -ps PASSWORD, --password PASSWORD
                         The password to connect to the database.
+                        
   -host HOST, --host HOST
                         The host or IP of the database server.
+                        
   -db DATABASE, --database DATABASE
                         The name of the database.
+                        
   -cd, --create_database
                         Create the database
+                        
   -dd, --drop_database  Drop the database
+  
   -ct, --create_tables  Create the tables of the database
+  
   -tr, --truncate_cves_tables
                         Truncate the CVEs-related tables
+                        
   -cve CVE, --cvs_number CVE
                         Print info for a CVE (CVSS score and other)
+                        
   -pr PRODUCT, --product PRODUCT
                         Print CVEs for a product
+                        
   -ve VENDOR, --vendor VENDOR
                         Print CVEs for a vendor for all products
+                        
   -sc SCORE, --score SCORE
                         Use base score as a selection criterion
+                        
   -dt DATE, --date DATE
-                        Use base score as a selection criterion
+                        Use publication date as a selection criterion
