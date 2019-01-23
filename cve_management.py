@@ -487,8 +487,8 @@ if __name__ == '__main__':
     parser.add_argument('-cve', '--cvs_number',  action="store", dest="cve", default=None, help="Print info for a CVE (CVSS score and other)")
     parser.add_argument('-pr', '--product',  action="store", dest="product", default=None, help="Print CVEs for a product")
     parser.add_argument('-ve', '--vendor',  action="store", dest="vendor", default=None, help="Print CVEs for a vendor for all products")
-    parser.add_argument('-sc', '--score',  action="store", dest="score", default=0.0, help="Use base score as a selection criterion")
-    parser.add_argument('-dt', '--date',  action="store", dest="date", default=1999, help="Use base score as a selection criterion")
+    parser.add_argument('-sc', '--score',  action="store", dest="score", default=0.0, help="Use base score of a CVE as a selection criterion")
+    parser.add_argument('-dt', '--date',  action="store", dest="date", default=1999, help="Use publication date of a CVE as a selection criterion")
     values = parser.parse_args()
 
     if not values.owner:
