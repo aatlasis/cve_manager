@@ -1,5 +1,6 @@
 # cve_manager
 A python script that:
+
   a) parses NIST NVD CVEs, 
   b) prcoesses and exports them to CSV files, 
   c) creates a postgres database and imports all the data in it, and
