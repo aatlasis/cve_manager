@@ -34,9 +34,9 @@ Usage examples:
 
   ./cve_management.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -pr radar -sc 9 -dt 2018
   
-- Query for all CVEs related with a vendor (e.g. microsoft), with a base metric score greater than a value (e.g. 9, that is critcal), and a publication date equal or newer than a specific year (e.g. 2019):
+- Query for all CVEs with a base metric score greater than a value (e.g. 9, that is critcal), and a publication date equal or newer than a specific year (e.g. 2019):
 
-  ./cve_management.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -ve microsoft -sc 9 -dt 2019
+  ./cve_management.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -sc 9 -dt 2019
   
 - Truncate the contents of all tables (required if you want to repeat the import process so as to update the data): 
 
@@ -93,13 +93,7 @@ Complete list of supported arguments:
                         
   -cve CVE, --cvs_number CVE
                         Print info for a CVE (CVSS score and other)
-                        
-  -pr PRODUCT, --product PRODUCT
-                        Print CVEs for a product
-                        
-  -ve VENDOR, --vendor VENDOR
-                        Print CVEs for a vendor for all products
-                        
+                   
   -sc SCORE, --score SCORE
                         Use base score as a selection criterion
                         
