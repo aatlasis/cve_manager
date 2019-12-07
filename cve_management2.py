@@ -155,11 +155,10 @@ def create_tables(myuser,mypassword,myhost,database):
             connection.close()
             print("PostgreSQL connection is closed")
 
-def download_cves(directory):
+def download_cves(directory,year):
     if not os.path.exists(directory):
         try:
             os.makedirs(directory)
-            #os.mkdir(directory)
         except OSError:
             print ('Error: Creating directory. ' + directory)
             exit(0)
@@ -168,12 +167,21 @@ def download_cves(directory):
     else:
         print ("Directory %s already exists" % directory)
     r = requests.get('https://nvd.nist.gov/vuln/data-feeds#JSON_FEED')
-    for filename in re.findall("nvdcve-1.0-[0-9]*\.json\.zip",r.text):
+    if year:
+        print("downloading ",year," only")
+        filename = "nvdcve-1.1-"+year+".json.zip"
         print(filename)
-        r_file = requests.get("https://static.nvd.nist.gov/feeds/json/cve/1.0/" + filename, stream=True)
+        r_file = requests.get("https://nvd.nist.gov/feeds/json/cve/1.1/" + filename, stream=True)
         with open(directory +"/" + filename, 'wb') as f:
             for chunk in r_file:
                 f.write(chunk)
+    else:
+        for filename in re.findall("nvdcve-1.1-[0-9]*\.json\.zip",r.text):
+            print(filename)
+            r_file = requests.get("https://nvd.nist.gov/feeds/json/cve/1.1/" + filename, stream=True)
+            with open(directory +"/" + filename, 'wb') as f:
+                for chunk in r_file:
+                    f.write(chunk)
 
 def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,database):
     if csv:
@@ -206,31 +214,14 @@ def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,dat
             print("CVE_data_timestamp: " + str(cve_dict['CVE_data_timestamp']))
             print("CVE_data_version: " + str(cve_dict['CVE_data_version']))
             print("CVE_data_format: " + str(cve_dict['CVE_data_format']))
-            print("CVE_data_numberOfCVEs: " + str(cve_dict['CVE_data_numberOfCVEs']))
+            print("CVE_data_number of CVEs: " + str(cve_dict['CVE_data_numberOfCVEs']))
             print("CVE_data_type: " + str(cve_dict['CVE_data_type']))
             all_cves = all_cves + cve_dict['CVE_Items']
             #print(json.dumps(cve_dict['CVE_Items'][0], sort_keys=True, indent=4, separators=(',', ': ')))
             jsonfile.close()
         cvssv_score=[]
-        cve_realated_problem=[]
         for cves in all_cves:
             cve = cves['cve']['CVE_data_meta']['ID']
-            try:
-                cpes = cves['configurations']['nodes'][0]['cpe_match']
-                for cpe in cpes:
-                    if csv:
-                        if 'cpe22Uri' in cpe:
-                            file_cpes.write(cve+"\t"+cpe['cpe22Uri'].replace('cpe:/o:','')+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
-                        else:
-                            file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
-            except Exception, e:
-                continue
-                print str(e) ##check it
-            for problem_type in cves['cve']['problemtype']['problemtype_data']:
-                for descr in problem_type['description']:
-                    problem =  descr['value']
-                    if csv:
-                        file_cve_related_problems.write(cve+"\t"+problem+"\n")
             description = ""
             for descriptions in cves['cve']['description']['description_data']:
                 description = description + descriptions['value']
@@ -266,12 +257,50 @@ def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,dat
                     file_cvss_score.write(cve.encode('utf-8')+"\t"+cvssv3+"\t"+cvssv2.encode('utf-8')+"\t"+"\t"+"\t"+description.encode('utf-8')+"\t"+cves['publishedDate'].encode('utf-8')+"\t"+cves['lastModifiedDate'].encode('utf-8')+"\n")
                 else:
                     file_cvss_score.write(cve.encode('utf-8')+"\t"+cvssv3.encode('utf-8')+"\t"+cvssv2.encode('utf-8')+"\t"+description.encode('utf-8')+"\t"+cves['publishedDate'].encode('utf-8')+"\t"+cves['lastModifiedDate'].encode('utf-8')+"\n")
-                    #file_cvss_score.write(cve.encode('utf-8')+"\t"+"\n")
-                    #file_cvss_score.write(cvssv2.encode('utf-8'))
-                    #file_cvss_score.write(description.encode('utf-8'))
-                    #file_cvss_score.write(cves['publishedDate'].encode('utf-8'))
-                    #file_cvss_score.write(cves['lastModifiedDate'].encode('utf-8'))
-        ###############################################################################################################
+            for problem_type in cves['cve']['problemtype']['problemtype_data']:
+                for descr in problem_type['description']:
+                    problem =  descr['value']
+                    if csv:
+                        file_cve_related_problems.write(cve+"\t"+problem+"\n")
+            try:
+                cpe_list_length=len(cves['configurations']['nodes'])
+                if (cpe_list_length !=0):
+                    for i in range(0,cpe_list_length):
+                        if 'children' in cves['configurations']['nodes'][i]:
+                            cpe_child_list_length=len(cves['configurations']['nodes'][i]['children'])
+                            if (cpe_child_list_length !=0):
+                                for j in range(0,cpe_child_list_length):
+                                    if('cpe_match' in cves['configurations']['nodes'][i]['children'][j]):
+                                        cpes = cves['configurations']['nodes'][i]['children'][j]['cpe_match']
+                                        for cpe in cpes:
+                                            if csv:
+                                                if 'cpe22Uri' in cpe:
+                                                    file_cpes.write(cve+"\t"+cpe['cpe22Uri']+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
+                                                if 'cpe23Uri' in cpe:
+                                                    file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
+                        else:
+                            if('cpe_match' in cves['configurations']['nodes'][i]):
+                                cpes = cves['configurations']['nodes'][i]['cpe_match']
+                                for cpe in cpes:
+                                    if csv:
+                                        if 'cpe22Uri' in cpe:
+                                            file_cpes.write(cve+"\t"+cpe['cpe22Uri']+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
+                                        if 'cpe23Uri' in cpe:
+                                            file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
+                            else:
+                                cpe_inner_list_length=len(cves['configurations']['nodes'])
+                                if (cpe_inner_list_length!=0):
+                                    for k in range(0,cpe_inner_list_length):
+                                        if('cpe_match' in cves['configurations']['nodes'][i]):
+                                            cpes = cves['configurations']['nodes'][i]['cpe_match']
+                                            for cpe in cpes:
+                                                if csv:
+                                                    if 'cpe22Uri' in cpe:
+                                                        file_cpes.write(cve+"\t"+cpe['cpe22Uri']+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
+                                                    if 'cpe23Uri' in cpe:
+                                                        file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
+            except Exception, e:
+                print(str(e),cves['configurations']) #check it
         file_cve_related_problems.close()
         file_cvss_score.close()
         file_cpes.close()
@@ -358,6 +387,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(version='0.1',description='CVEs Manager.')
     parser.add_argument('-p', '--parse',  action="store_true", dest="process", default=False, help="Process downloaded CVEs.")
     parser.add_argument('-d', '--download',  action="store_true", dest="download", default=False, help="Download CVEs.")
+    parser.add_argument('-y', '--year',  action="store", dest="year", default=False, help="The year for which CVEs shall be downloaded (e.g. 2019)")
     parser.add_argument('-csv', '--cvs_files',  action="store_true", dest="csv", default=False, help="Create CSVs files.")
     parser.add_argument('-idb', '--import_to_db',  action="store_true", dest="idb", default=False, help="Import CVEs into a database.")
     parser.add_argument('-i', '--input', action="store", default = 'nvd/', dest="input", help="The directory where NVD json files will been downloaded, and the one from where they will be parsed (default: nvd/")
@@ -385,7 +415,7 @@ if __name__ == '__main__':
     if values.ct:
         create_tables(values.user,values.password,values.host,values.database)
     if values.download:
-        download_cves(values.input)
+        download_cves(values.input,values.year)
     if values.process:
         process_cves(values.input, values.results, values.csv, values.idb,values.user,values.password,values.host,values.database)
     if values.tr: 
