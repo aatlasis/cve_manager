@@ -6,6 +6,8 @@ A python script that:
   c) creates a postgres database and imports all the data in it, and
   d) provides query capabilities for this CVEs database.
 
+It required Python 2.7.x (soon to be migrated to Python 3)
+
 Usage examples: 
 
 - Download, parse and save in CSV files all CVEs from NIST NVD:
