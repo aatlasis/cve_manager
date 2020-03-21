@@ -4,9 +4,9 @@ A python script that:
   a) parses NIST NVD CVEs, 
   b) prcoesses and exports them to CSV files, 
   c) creates a postgres database and imports all the data in it, and
-  d) provides query capabilities for this CVEs database.
+  d) provides (basic) query capabilities for this CVEs database.
 
-It required Python 2.7.x (soon to be migrated to Python 3)
+It requires Python 3 ("psycopg2" and "requests" python libraries)
 
 Usage examples: 
 
@@ -25,12 +25,6 @@ Usage examples:
 - Query for a specific CVE:
   ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -cve 2019-2434
     
-- Query for all CVEs related with a product (e.g. windows), with a base metric score greater than a value (e.g. 9, that is critcal), and a publication date equal or newer than a specific year (e.g. 2018):
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -pr radar -sc 9 -dt 2018
-  
-- Query for all CVEs with a base metric score greater than a value (e.g. 9, that is critcal), and a publication date equal or newer than a specific year (e.g. 2019):
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -sc 9 -dt 2019
-  
 - Truncate the contents of all tables (required if you want to repeat the import process so as to update the data): 
   ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -tr
   
@@ -87,8 +81,3 @@ Complete list of supported arguments:
   -cve CVE, --cvs_number CVE
                         Print info for a CVE (CVSS score and other)
                    
-  -sc SCORE, --score SCORE
-                        Use base score as a selection criterion
-                        
-  -dt DATE, --date DATE
-                        Use publication date as a selection criterion
