@@ -165,7 +165,10 @@ def download_cves(directory,year):
             print ("Successfully created the directory %s" % directory)
     else:
         print ("Directory %s already exists" % directory)
-    r = requests.get('https://nvd.nist.gov/vuln/data-feeds#JSON_FEED')
+    try:
+        r = requests.get('https://nvd.nist.gov/vuln/data-feeds#JSON_FEED')
+    except Exception as e:
+        print(e)
     if year:
         print("downloading ",year," only")
         filename = "nvdcve-1.1-"+year+".json.zip"
