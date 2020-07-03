@@ -17,6 +17,7 @@ import json
 import requests
 import re
 import io 
+import csv
 
 ##This is the Postgresql Database Schema##
 query = '''
@@ -95,6 +96,7 @@ CREATE VIEW public.cvss_vs_cpes AS
 --ALTER TABLE public.cvss_vs_cpes OWNER TO atlas;
 '''
 
+## functions to manage the database (optional)
 def create_database(myuser,mypassword,myhost,database, owner):
     con = None
     try:
@@ -154,6 +156,8 @@ def create_tables(myuser,mypassword,myhost,database):
             connection.close()
             print("PostgreSQL connection is closed")
 
+
+#Download CVEs
 def download_cves(directory,year):
     if not os.path.exists(directory):
         try:
@@ -185,8 +189,9 @@ def download_cves(directory,year):
                 for chunk in r_file:
                     f.write(chunk)
 
-def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,database):
-    if csv:
+#processes the already downloaded in json format CVEs
+def process_cves(directory, results, csv_file, import_db,myuser,mypassword,myhost,database):
+    if csv_file:
         if not os.path.exists(results):
             try:
                 os.makedirs(results)
@@ -197,13 +202,19 @@ def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,dat
                 print ("Successfully created the directory %s" % results)
         else:
             print ("Directory %s already exists" % results)
+
         file_cve_related_problems = open(results+"cve_related_problems.csv","w")
+        writer_cwe=csv.writer(file_cve_related_problems,delimiter="\t")
+
         file_cvss_score = open(results+"cve_cvss_scores.csv","w")
+        writer_cvss=csv.writer(file_cvss_score ,delimiter="\t")
+
         file_cpes = open(results+"cve_cpes.csv","w")
-        file_cve_related_problems.write("CVE\tProblem\n")
-        file_cpes.write("CVE\tcpe23Uri\tVulnerable\n")
-        #file_cpes.write("CVE\tcpe22Uri\tcpe23Uri\tVulnerable\n")
-        file_cvss_score.write("CVE\tAttack Complexity\tAttack Vector\tAvailability Impact\tConfidentiality Impact\tIntegrity Impact\tPrivileges Required\tScope\tUserInteraction\tVector String\tExploitability Score\tImpact Score\tbase Score\tbase Severity\tAccess Complexity\tAccess Vector\tAuthentication\tAvailability Impact\tConfidentiality Impact\tIntegrityImpact\tObtain All Privilege\tobtain Other Privilege\tobtain User Privilege\tuser Interaction Required\tvector String\tExploitability Score\timpact Score\tbaseScore\tseverity\tDescription\tPublished Date\tLast Modified Date\n")
+        writer_cpe=csv.writer(file_cpes,delimiter="\t")
+
+        writer_cpe.writerow(["CVE","cpe23Uri","Vulnerable"])
+        writer_cwe.writerow(["CVE","Problem"])
+        writer_cvss.writerow(["CVE","Attack Complexity","Attack Vector","Availability Impact","Confidentiality Impact","Integrity Impact","Privileges Required","Scope","UserInteraction","Vector String","Exploitability Score","Impact Score","base Score","base Severity","Access Complexity","Access Vector","Authentication","Availability Impact","Confidentiality Impact","Integrity Impact","Obtain All Privilege","Obtain Other Privilege","Obtain User Privilege","User Interaction Required","Vector String","Exploitability Score","impact Score","baseScore","severity","Description","Published Date","Last Modified Date"])
         ########################################################################################
         all_cves = []
         directory = directory + "/"
@@ -228,47 +239,31 @@ def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,dat
             description = ""
             for descriptions in cves['cve']['description']['description_data']:
                 description = description + descriptions['value']
-            if description.find("** REJECT **"):
-                description = description.replace('\r\n', ' ')
-                description = description.replace('\n', ' ')
-                description = description.replace('\t', ' ')
-                separator = "\t"
-                cvssv3 = ""
-                cvssv2 = ""
-                cvssv3_missing=False
-                cvssv2_missing=False
-                try:
-                    cvssv3 = separator.join([cves['impact']['baseMetricV3']['cvssV3']['attackComplexity'],cves['impact']['baseMetricV3']['cvssV3']['attackVector'],cves['impact']['baseMetricV3']['cvssV3']['availabilityImpact'],cves['impact']['baseMetricV3']['cvssV3']['confidentialityImpact'],cves['impact']['baseMetricV3']['cvssV3']['integrityImpact'],cves['impact']['baseMetricV3']['cvssV3']['privilegesRequired'],cves['impact']['baseMetricV3']['cvssV3']['scope'],cves['impact']['baseMetricV3']['cvssV3']['userInteraction'],cves['impact']['baseMetricV3']['cvssV3']['vectorString'],str(cves['impact']['baseMetricV3']['exploitabilityScore']),str(cves['impact']['baseMetricV3']['impactScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseSeverity'])])
-                except Exception as e:
-                    if str(e) == "'baseMetricV3'":
-                        cvssv3_missing=True
-                        cvssv3 = separator.join(["","","","","","","","","","","","",""])
-                    else:
-                        print(str(e))
-                try:
-                    cvssv2 = separator.join([cves['impact']['baseMetricV2']['cvssV2']['accessComplexity'],cves['impact']['baseMetricV2']['cvssV2']['accessVector'],cves['impact']['baseMetricV2']['cvssV2']['authentication'],cves['impact']['baseMetricV2']['cvssV2']['availabilityImpact'],cves['impact']['baseMetricV2']['cvssV2']['confidentialityImpact'],cves['impact']['baseMetricV2']['cvssV2']['integrityImpact'],str(cves['impact']['baseMetricV2']['obtainAllPrivilege']),str(cves['impact']['baseMetricV2']['obtainOtherPrivilege']),str(cves['impact']['baseMetricV2']['obtainUserPrivilege']),str(cves['impact']['baseMetricV2']['userInteractionRequired']),cves['impact']['baseMetricV2']['cvssV2']['vectorString'],str(cves['impact']['baseMetricV2']['exploitabilityScore']),str(cves['impact']['baseMetricV2']['impactScore']),str(cves['impact']['baseMetricV2']['cvssV2']['baseScore']),str(cves['impact']['baseMetricV2']['severity'])])
-                except Exception as e:
-                    if str(e) == "'baseMetricV2'":
-                        cvssv2 = separator.join(["","","","","","","","","","","","",""])
-                        cvssv2_missing=True
-                    elif str(e) == "'userInteractionRequired'":
-                        cvssv2 = separator.join([cves['impact']['baseMetricV2']['cvssV2']['accessComplexity'],cves['impact']['baseMetricV2']['cvssV2']['accessVector'],cves['impact']['baseMetricV2']['cvssV2']['authentication'],cves['impact']['baseMetricV2']['cvssV2']['availabilityImpact'],cves['impact']['baseMetricV2']['cvssV2']['confidentialityImpact'],cves['impact']['baseMetricV2']['cvssV2']['integrityImpact'],str(cves['impact']['baseMetricV2']['obtainAllPrivilege']),str(cves['impact']['baseMetricV2']['obtainOtherPrivilege']),str(cves['impact']['baseMetricV2']['obtainUserPrivilege']),"",cves['impact']['baseMetricV2']['cvssV2']['vectorString'],str(cves['impact']['baseMetricV2']['exploitabilityScore']),str(cves['impact']['baseMetricV2']['impactScore']),str(cves['impact']['baseMetricV2']['cvssV2']['baseScore']),str(cves['impact']['baseMetricV2']['severity'])])
-                    else:
-                        print(str(e))
-                if cvssv2_missing and cvssv3_missing:
-                    #print "Both CVSSv2 and CVSSv3 are missing"
-                    #file_cvss_score.write(str(cve.encode('utf-8'))+"\t"+cvssv3+"\t"+str(cvssv2.encode('utf-8'))+"\t"+"\t"+"\t"+str(description.encode('utf-8'))+"\t"+str(cves['publishedDate'].encode('utf-8'))+"\t"+str(cves['lastModifiedDate'].encode('utf-8'))+"\n")
-                    #file_cvss_score.write(cve.encode('utf-8')+"\t"+cvssv3+"\t"+cvssv2.encode('utf-8')+"\t"+"\t"+"\t"+description.encode('utf-8')+"\t"+cves['publishedDate'].encode('utf-8')+"\t"+cves['lastModifiedDate'].encode('utf-8')+"\n")
-                    file_cvss_score.write(cve+"\t"+cvssv3+"\t"+cvssv2+"\t"+"\t"+"\t"+description+"\t"+cves['publishedDate']+"\t"+cves['lastModifiedDate']+"\n")
+            try:
+                writer_cvss.writerow([cve,cves['impact']['baseMetricV3']['cvssV3']['attackComplexity'],cves['impact']['baseMetricV3']['cvssV3']['attackVector'],cves['impact']['baseMetricV3']['cvssV3']['availabilityImpact'],cves['impact']['baseMetricV3']['cvssV3']['confidentialityImpact'],cves['impact']['baseMetricV3']['cvssV3']['integrityImpact'],cves['impact']['baseMetricV3']['cvssV3']['privilegesRequired'],cves['impact']['baseMetricV3']['cvssV3']['scope'],cves['impact']['baseMetricV3']['cvssV3']['userInteraction'],cves['impact']['baseMetricV3']['cvssV3']['vectorString'],str(cves['impact']['baseMetricV3']['exploitabilityScore']),str(cves['impact']['baseMetricV3']['impactScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseSeverity']),cves['impact']['baseMetricV2']['cvssV2']['accessComplexity'],cves['impact']['baseMetricV2']['cvssV2']['accessVector'],cves['impact']['baseMetricV2']['cvssV2']['authentication'],cves['impact']['baseMetricV2']['cvssV2']['availabilityImpact'],cves['impact']['baseMetricV2']['cvssV2']['confidentialityImpact'],cves['impact']['baseMetricV2']['cvssV2']['integrityImpact'],str(cves['impact']['baseMetricV2']['obtainAllPrivilege']),str(cves['impact']['baseMetricV2']['obtainOtherPrivilege']),str(cves['impact']['baseMetricV2']['obtainUserPrivilege']),str(cves['impact']['baseMetricV2']['userInteractionRequired']),cves['impact']['baseMetricV2']['cvssV2']['vectorString'],str(cves['impact']['baseMetricV2']['exploitabilityScore']),str(cves['impact']['baseMetricV2']['impactScore']),str(cves['impact']['baseMetricV2']['cvssV2']['baseScore']),str(cves['impact']['baseMetricV2']['severity']),description,cves['publishedDate'],cves['lastModifiedDate']])
+            except Exception as e:
+                if str(e) == "'baseMetricV3'":
+                    try:
+                        writer_cvss.writerow([cve,None,None,None,None,None,None,None,None,None,None,None,None,None,cves['impact']['baseMetricV2']['cvssV2']['accessComplexity'],cves['impact']['baseMetricV2']['cvssV2']['accessVector'],cves['impact']['baseMetricV2']['cvssV2']['authentication'],cves['impact']['baseMetricV2']['cvssV2']['availabilityImpact'],cves['impact']['baseMetricV2']['cvssV2']['confidentialityImpact'],cves['impact']['baseMetricV2']['cvssV2']['integrityImpact'],str(cves['impact']['baseMetricV2']['obtainAllPrivilege']),str(cves['impact']['baseMetricV2']['obtainOtherPrivilege']),str(cves['impact']['baseMetricV2']['obtainUserPrivilege']),str(cves['impact']['baseMetricV2']['userInteractionRequired']),cves['impact']['baseMetricV2']['cvssV2']['vectorString'],str(cves['impact']['baseMetricV2']['exploitabilityScore']),str(cves['impact']['baseMetricV2']['impactScore']),str(cves['impact']['baseMetricV2']['cvssV2']['baseScore']),str(cves['impact']['baseMetricV2']['severity']),description,cves['publishedDate'],cves['lastModifiedDate']])
+                    except Exception as e2:
+                        if str(e2) == "'baseMetricV2'":
+                            writer_cvss.writerow([cve,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,description,cves['publishedDate'],cves['lastModifiedDate']])
+                        elif str(e2) == "'userInteractionRequired'":
+                            writer_cvss.writerow([cve,None,None,None,None,None,None,None,None,None,None,None,None,None,cves['impact']['baseMetricV2']['cvssV2']['accessComplexity'],cves['impact']['baseMetricV2']['cvssV2']['accessVector'],cves['impact']['baseMetricV2']['cvssV2']['authentication'],cves['impact']['baseMetricV2']['cvssV2']['availabilityImpact'],cves['impact']['baseMetricV2']['cvssV2']['confidentialityImpact'],cves['impact']['baseMetricV2']['cvssV2']['integrityImpact'],str(cves['impact']['baseMetricV2']['obtainAllPrivilege']),str(cves['impact']['baseMetricV2']['obtainOtherPrivilege']),str(cves['impact']['baseMetricV2']['obtainUserPrivilege']),None,cves['impact']['baseMetricV2']['cvssV2']['vectorString'],str(cves['impact']['baseMetricV2']['exploitabilityScore']),str(cves['impact']['baseMetricV2']['impactScore']),str(cves['impact']['baseMetricV2']['cvssV2']['baseScore']),str(cves['impact']['baseMetricV2']['severity']),description,cves['publishedDate'],cves['lastModifiedDate']])
+                        else:
+                            print("Error e2",e2)
+                elif str(e) == "'baseMetricV2'":
+                    writer_cvss.writerow([cve,cves['impact']['baseMetricV3']['cvssV3']['attackComplexity'],cves['impact']['baseMetricV3']['cvssV3']['attackVector'],cves['impact']['baseMetricV3']['cvssV3']['availabilityImpact'],cves['impact']['baseMetricV3']['cvssV3']['confidentialityImpact'],cves['impact']['baseMetricV3']['cvssV3']['integrityImpact'],cves['impact']['baseMetricV3']['cvssV3']['privilegesRequired'],cves['impact']['baseMetricV3']['cvssV3']['scope'],cves['impact']['baseMetricV3']['cvssV3']['userInteraction'],cves['impact']['baseMetricV3']['cvssV3']['vectorString'],str(cves['impact']['baseMetricV3']['exploitabilityScore']),str(cves['impact']['baseMetricV3']['impactScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseSeverity']),None,None,None,None,None,None,None,None,None,None,None,None,None,None,None,description,cves['publishedDate'],cves['lastModifiedDate']])
+                elif str(e) == "'userInteractionRequired'":
+                    writer_cvss.writerow([cve,cves['impact']['baseMetricV3']['cvssV3']['attackComplexity'],cves['impact']['baseMetricV3']['cvssV3']['attackVector'],cves['impact']['baseMetricV3']['cvssV3']['availabilityImpact'],cves['impact']['baseMetricV3']['cvssV3']['confidentialityImpact'],cves['impact']['baseMetricV3']['cvssV3']['integrityImpact'],cves['impact']['baseMetricV3']['cvssV3']['privilegesRequired'],cves['impact']['baseMetricV3']['cvssV3']['scope'],cves['impact']['baseMetricV3']['cvssV3']['userInteraction'],cves['impact']['baseMetricV3']['cvssV3']['vectorString'],str(cves['impact']['baseMetricV3']['exploitabilityScore']),str(cves['impact']['baseMetricV3']['impactScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseScore']),str(cves['impact']['baseMetricV3']['cvssV3']['baseSeverity']),cves['impact']['baseMetricV2']['cvssV2']['accessComplexity'],cves['impact']['baseMetricV2']['cvssV2']['accessVector'],cves['impact']['baseMetricV2']['cvssV2']['authentication'],cves['impact']['baseMetricV2']['cvssV2']['availabilityImpact'],cves['impact']['baseMetricV2']['cvssV2']['confidentialityImpact'],cves['impact']['baseMetricV2']['cvssV2']['integrityImpact'],str(cves['impact']['baseMetricV2']['obtainAllPrivilege']),str(cves['impact']['baseMetricV2']['obtainOtherPrivilege']),str(cves['impact']['baseMetricV2']['obtainUserPrivilege']),None,cves['impact']['baseMetricV2']['cvssV2']['vectorString'],str(cves['impact']['baseMetricV2']['exploitabilityScore']),str(cves['impact']['baseMetricV2']['impactScore']),str(cves['impact']['baseMetricV2']['cvssV2']['baseScore']),str(cves['impact']['baseMetricV2']['severity']),description,cves['publishedDate'],cves['lastModifiedDate']])
                 else:
-                    #file_cvss_score.write(str(cve.encode('utf-8'))+"\t"+str(cvssv3.encode('utf-8'))+"\t"+str(cvssv2.encode('utf-8'))+"\t"+str(description.encode('utf-8'))+"\t"+str(cves['publishedDate'].encode('utf-8'))+"\t"+str(cves['lastModifiedDate'].encode('utf-8'))+"\n")
-                    #file_cvss_score.write(cve.encode('utf-8')+"\t"+cvssv3.encode('utf-8')+"\t"+cvssv2.encode('utf-8')+"\t"+description.encode('utf-8')+"\t"+cves['publishedDate'].encode('utf-8')+"\t"+cves['lastModifiedDate'].encode('utf-8')+"\n")
-                    file_cvss_score.write(cve+"\t"+cvssv3+"\t"+cvssv2+"\t"+description+"\t"+cves['publishedDate']+"\t"+cves['lastModifiedDate']+"\n")
+                    print("Error e",e)
+
             for problem_type in cves['cve']['problemtype']['problemtype_data']:
                 for descr in problem_type['description']:
                     problem =  descr['value']
-                    if csv:
-                        file_cve_related_problems.write(cve+"\t"+problem+"\n")
+                    if csv_file:
+                        writer_cwe.writerow([cve,problem])
             try:
                 cpe_list_length=len(cves['configurations']['nodes'])
                 if (cpe_list_length !=0):
@@ -280,22 +275,16 @@ def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,dat
                                     if('cpe_match' in cves['configurations']['nodes'][i]['children'][j]):
                                         cpes = cves['configurations']['nodes'][i]['children'][j]['cpe_match']
                                         for cpe in cpes:
-                                            if csv:
-                                                #if 'cpe22Uri' in cpe:
-                                                #    file_cpes.write(cve+"\t"+cpe['cpe22Uri']+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
+                                            if csv_file:
                                                 if 'cpe23Uri' in cpe:
-                                                    #file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
-                                                    file_cpes.write(cve+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
+                                                    writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
                         else:
                             if('cpe_match' in cves['configurations']['nodes'][i]):
                                 cpes = cves['configurations']['nodes'][i]['cpe_match']
                                 for cpe in cpes:
-                                    if csv:
-                                        #if 'cpe22Uri' in cpe:
-                                        #    file_cpes.write(cve+"\t"+cpe['cpe22Uri']+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
+                                    if csv_file:
                                         if 'cpe23Uri' in cpe:
-                                            file_cpes.write(cve+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
-                                            #file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
+                                            writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
                             else:
                                 cpe_inner_list_length=len(cves['configurations']['nodes'])
                                 if (cpe_inner_list_length!=0):
@@ -303,12 +292,9 @@ def process_cves(directory, results, csv, import_db,myuser,mypassword,myhost,dat
                                         if('cpe_match' in cves['configurations']['nodes'][i]):
                                             cpes = cves['configurations']['nodes'][i]['cpe_match']
                                             for cpe in cpes:
-                                                if csv:
-                                                    #if 'cpe22Uri' in cpe:
-                                                    #    file_cpes.write(cve+"\t"+cpe['cpe22Uri']+"\t"+cpe['cpe23Uri'].replace('cpe:2.3:o:','')+"\t"+str(cpe['vulnerable'])+"\n")
+                                                if csv_file:
                                                     if 'cpe23Uri' in cpe:
-                                                        #file_cpes.write(cve+"\t"+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
-                                                        file_cpes.write(cve+"\t"+cpe['cpe23Uri']+"\t"+str(cpe['vulnerable'])+"\n")
+                                                        writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
             except Exception as e:
                 print(str(e),cves['configurations']) #check it
         file_cve_related_problems.close()
@@ -399,7 +385,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--parse',  action="store_true", dest="process", default=False, help="Process downloaded CVEs.")
     parser.add_argument('-d', '--download',  action="store_true", dest="download", default=False, help="Download CVEs.")
     parser.add_argument('-y', '--year',  action="store", dest="year", default=False, help="The year for which CVEs shall be downloaded (e.g. 2019)")
-    parser.add_argument('-csv', '--cvs_files',  action="store_true", dest="csv", default=False, help="Create CSVs files.")
+    parser.add_argument('-csv', '--cvs_files',  action="store_true", dest="csv_file", default=False, help="Create CSVs files.")
     parser.add_argument('-idb', '--import_to_db',  action="store_true", dest="idb", default=False, help="Import CVEs into a database.")
     parser.add_argument('-i', '--input', action="store", default = 'nvd/', dest="input", help="The directory where NVD json files will been downloaded, and the one from where they will be parsed (default: nvd/")
     parser.add_argument('-o', '--output', action="store", default = 'results/', dest="results", help="The directory where the csv files will be stored (default: results/")
@@ -428,7 +414,7 @@ if __name__ == '__main__':
     if values.download:
         download_cves(values.input,values.year)
     if values.process:
-        process_cves(values.input, values.results, values.csv, values.idb,values.user,values.password,values.host,values.database)
+        process_cves(values.input, values.results, values.csv_file, values.idb,values.user,values.password,values.host,values.database)
     if values.tr: 
         truncate_database(values.user,values.password,values.host,values.database)
     if values.cve:
