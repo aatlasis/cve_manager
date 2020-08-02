@@ -1,0 +1,11 @@
+Changelog
+---------
+
+2020 Aug 02
+
+Most significant changes:
+You can query (offline) the database and get:
+- details about specific CVE including affected products (as CPEs) and CWEs (ie related weaknesses).
+- the affected CWE and get info about consequences, potential mitigations, etc.
+- list all CVEs greater than a score, published after a specific date, applicable to specific products (based on CPEs), or any combination of the above, and extract them (optionally) to  CSV files for further processing.
+
