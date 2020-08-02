@@ -81,3 +81,4 @@ Complete list of supported arguments:
   -cve CVE, --cvs_number CVE
                         Print info for a CVE (CVSS score and other)
                    
+Please check the CVE Manager pdf file for more capabilities, information, and screenshots.
