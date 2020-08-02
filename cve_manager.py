@@ -1,5 +1,4 @@
-#!/usr/bin/python
-#check out the ~/.pgpass file to store password securely and not in the source code (http://www.postgresql.org/docs/9.2/static/libpq-pgpass.html). libpq, the postgresql client librairy, check for this file to get proper login information.
+#!/usr/bin/env python3
 
 import psycopg2
 from psycopg2 import Error
@@ -11,7 +10,6 @@ import os
 from os import listdir
 from os.path import isfile, join, exists
 from os import makedirs
-import argparse
 import zipfile
 import json
 import requests
@@ -21,9 +19,6 @@ import csv
 
 ##This is the Postgresql Database Schema##
 query = '''
---
--- Name: cvss; Type: TABLE; Schema: public; Owner: atlas
---
 CREATE TABLE public.cvss (
     cve character(20) NOT NULL,
     attack_complexity_3 character(5),
@@ -58,30 +53,28 @@ CREATE TABLE public.cvss (
     published_date date,
     last_modified_date date
 );
---ALTER TABLE public.cvss OWNER TO atlas;
 
---
--- Name: cpe; Type: TABLE; Schema: public; Owner: atlas
---
 CREATE TABLE public.cpe (
     cve character(20) NOT NULL,
     cpe23uri text,
     vulnerable character(5)
 );
---ALTER TABLE public.cpe OWNER TO atlas;
 
---
--- Name: cve_problem; Type: TABLE; Schema: public; Owner: atlas
---
 CREATE TABLE public.cve_problem (
     cve character(20) NOT NULL,
     problem text
 );
---ALTER TABLE public.cve_problem OWNER TO atlas;
 
---
--- Name: cvss_vs_cpes; Type: VIEW; Schema: public; Owner: atlas
---
+CREATE TABLE public.cwe (
+    cwe_id integer NOT NULL,
+    name text,
+    description text,
+    extended_description text,
+    modes_of_introduction text,
+    common_consequences text,
+    potential_mitigations text
+);
+
 CREATE VIEW public.cvss_vs_cpes AS
  SELECT cvss.cve,
     cvss.base_score_3,
@@ -89,11 +82,11 @@ CREATE VIEW public.cvss_vs_cpes AS
     cvss.base_score,
     cvss.severity,
     cpe.cpe23uri,
-    cvss.description
+    cvss.description,
+    cvss.published_date
    FROM public.cpe,
     public.cvss
-  WHERE (cpe.cve = cvss.cve);
---ALTER TABLE public.cvss_vs_cpes OWNER TO atlas;
+  WHERE (cpe.cve = cvss.cve) AND cpe.vulnerable = 'True'::bpchar;
 '''
 
 ## functions to manage the database (optional)
@@ -333,7 +326,6 @@ def process_cves(directory, results, csv_file, import_db,myuser,mypassword,myhos
             print("importing CVEs vs CPEs")
             f.readline()
             cur.copy_from(f, 'cpe', sep='\t',columns=('cve','cpe23uri','vulnerable'))
-            #cur.copy_from(f, 'cpe', sep='\t',columns=('cve','cpe22uri','cpe23uri','vulnerable'))
         conn.commit()
         f.close()
 
@@ -354,24 +346,190 @@ def truncate_database(myuser,mypassword,myhost,database):
             con.close()
             print("PostgreSQL connection is closed")
 
-def execute_query(myuser,mypassword,myhost,database,cve,score,date):
+def execute_query(myuser,mypassword,myhost,database,cve,score,date,csv_on,output_folder):
     con = None
     try:
         con = connect(dbname=database, user=myuser, host = myhost, password=mypassword)
-        #con.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cur = con.cursor()
-        print("Executing query")
+        print("Executing query\r\n")
         if cve:
-            cur.execute("SELECT cve, vector_string_3, base_score_3, base_severity_3, vector_string, base_score, severity, description, published_date FROM cvss WHERE cve LIKE '%"+cve+"%'")
+            cur.execute("SELECT cve, vector_string_3, base_score_3, base_severity_3, vector_string, base_score, severity, description, published_date, last_modified_date FROM cvss WHERE cve LIKE '%"+cve+"%'")
             selected_cve = cur.fetchone()
-            answer = ""
-            for r in selected_cve:
-                if type(r) is str:
-                    answer = answer+r.strip()+"\t"
-                else:
-                    answer = answer+str(r)+"\t"
-            answer = answer.rstrip('\t')
-            print(answer)
+            print("CVE:\t\t\t",selected_cve[0])
+            print("CVSSv3.x Attack vector: ",selected_cve[1])
+            print("CVSSv3.x Base Score:\t",selected_cve[2],selected_cve[3])
+            print("CVSSv2.x Attack vector: ",selected_cve[4])
+            print("CVSSv2.x Base Score:\t",selected_cve[5],selected_cve[6])
+            print("Description:")
+            print(selected_cve[7])
+            print("\r\nPubished Date:\t\t",selected_cve[8])
+            print("Last Modified Date:\t",selected_cve[9])
+            cur.execute("SELECT problem FROM cve_problem WHERE cve LIKE '%"+cve+"%'")
+            selected_cve = cur.fetchall()
+            print("\r\nRelated Common Weakness Enumerations (CWE)")
+            print("-------------------------------------------")
+            for i in selected_cve:
+                cwe=i[0].lstrip('CWE-')
+                cur.execute("SELECT name FROM cwe WHERE cwe_id = "+cwe)
+                selected_cve2 = cur.fetchone()
+                print(i[0], selected_cve2[0])
+            cur.execute("SELECT cpe23uri FROM cpe WHERE cve LIKE '%"+cve+"%' AND vulnerable='True'")
+            selected_cve = cur.fetchall()
+            print("\r\nRelated Common Platform Enumerations (CPE)")
+            print("-------------------------------------------")
+            for i in selected_cve:
+                print(i[0])
+        elif score or date:
+            if csv_on:
+                cves=[]
+            if date:
+                cur.execute("SELECT cve, base_score_3,  vector_string_3, base_score, vector_string, published_date FROM cvss WHERE (base_score_3 >= "+score+"OR base_score >= "+ score+") AND (published_date >= '"+date+"'::date)")
+                selected_cves = cur.fetchall()
+                print("CVE \t\tCVSSv3.x Score CVSSv3.x Vector String \t\t\tCVSSv2 Score CVSSv2 Vector String\t\t\t Published Date")
+                for r in selected_cves:
+                    print(r[0],r[1],r[2],r[3],r[4],r[5])
+                    if csv_on:
+                        cves.append(r)
+            else:
+                cur.execute("SELECT cve, base_score_3, vector_string_3, base_score, vector_string, published_date FROM cvss WHERE base_score_3 >= "+score+"OR base_score >= "+ score)
+                selected_cves = cur.fetchall()
+                print("CVE \t\tCVSSv3.x Score CVSSv3.x Vector String \t\t\tCVSSv2 Score CVSSv2 Vector String")
+                for r in selected_cves:
+                    print(r[0],r[1],r[2],r[3],r[4])
+                    if csv_on:
+                        cves.append(r)
+    except (Exception, psycopg2.DatabaseError) as error :
+        print ("Error while Querying Database", error)
+    finally:
+        if(con):
+            cur.close()
+            con.close()
+            print("\r\nPostgreSQL connection is closed")
+        if csv_on:
+            if not os.path.exists(output_folder):
+                try:
+                    os.makedirs(output_folder)
+                except OSError:
+                    print ('Error: Creating directory. ' + output_folder)
+                    exit(0)
+                else:  
+                    print ("Successfully created the directory %s" % output_folder)
+            else:
+                print ("Directory %s already exists" % output_folder)
+            file_cve = open(output_folder+"CVEs_score"+score+"_"+str(date)+".csv","w")
+            writer_cve=csv.writer(file_cve,delimiter=",")
+            writer_cve.writerow(["CVE","CVSSv3 Score","CVSSv3 Vector String","CVSSv2 Score","CVSSv2 Vector String","Published Date"])
+            for r in cves:
+                writer_cve.writerow([r[0],r[1],r[2],r[3],r[4],r[5]])
+            file_cve.close()
+
+def execute_query_cpe(myuser,mypassword,myhost,database,cpe,score,date,csv_on,output_folder):
+    con = None
+    if csv_on:
+        cpes=[]
+    try:
+        con = connect(dbname=database, user=myuser, host = myhost, password=mypassword)
+        cur = con.cursor()
+        print("Executing query\r\n")
+        if date:
+            cur.execute("SELECT cpe23uri, cve, base_score_3, base_score, published_date FROM cvss_vs_cpes WHERE cpe23uri LIKE '%"+cpe+"%' AND (base_score_3 >= "+score+"OR base_score >= "+ score+") AND (published_date >= '"+date+"'::date)")
+            selected_cpe = cur.fetchall()
+            print("CPE\t\t\t\t\t\t\tCVE\t\tCVSSv3.x CVSSv2\t Published Date")
+            for r in selected_cpe:
+                print(r[0],r[1],r[2],"\t",r[3],"\t",r[4])
+                if csv_on:
+                    cpes.append(r)
+        else:
+            cur.execute("SELECT cpe23uri, cve, base_score_3, base_score,published_date FROM cvss_vs_cpes WHERE cpe23uri LIKE '%"+cpe+"%' AND (base_score_3 >= "+score+"OR base_score >= "+ score+")")
+            selected_cpe = cur.fetchall()
+            print("CPE\t\t\t\t\t\t\tCVE\t\tCVSSv3.x CVSSv2")
+            for r in selected_cpe:
+                print(r[0],r[1],r[2],"\t",r[3])
+                if csv_on:
+                    cpes.append(r)
+    except (Exception, psycopg2.DatabaseError) as error :
+        print ("Error while Querying Database", error)
+    finally:
+        if(con):
+            cur.close()
+            con.close()
+            print("\r\nPostgreSQL connection is closed")
+        if csv_on:
+            if not os.path.exists(output_folder):
+                try:
+                    os.makedirs(output_folder)
+                except OSError:
+                    print ('Error: Creating directory. ' + output_folder)
+                    exit(0)
+                else:  
+                    print ("Successfully created the directory %s" % output_folder)
+            else:
+                print ("Directory %s already exists" % output_folder)
+            file_cpe = open(output_folder+cpe+"_"+score+"_"+str(date)+".csv","w")
+            writer_cpe=csv.writer(file_cpe,delimiter=",")
+            writer_cpe.writerow(["CPE","CVE","CVSSv3 Score","CVSSv2 Score","Published Date"])
+            for r in cpes:
+                writer_cpe.writerow([r[0],r[1],r[2],r[3],r[4]])
+            file_cpe.close()
+
+def execute_query_cwe(myuser,mypassword,myhost,database,cwe):
+    con = None
+    try:
+        con = connect(dbname=database, user=myuser, host = myhost, password=mypassword)
+        cur = con.cursor()
+        print("Executing query\r\n")
+        cur.execute("SELECT * FROM cwe WHERE cwe_id = "+cwe)
+        selected_cwe = cur.fetchone()
+        if selected_cwe:
+            print("CWE-"+str(selected_cwe[0]))
+            print("========")
+            print(selected_cwe[1])
+            if(selected_cwe[2]):
+                print(selected_cwe[2])
+            if(selected_cwe[3]):
+                print(selected_cwe[3])
+            if(selected_cwe[4]):
+                print("\r\nModes of Introduction")
+                print("--------------------")
+                print(selected_cwe[4])
+            if(selected_cwe[5]):
+                print("\r\nCommon Consequences")
+                print("--------------------")
+                print(selected_cwe[5])
+            if(selected_cwe[6]):
+                print("\r\nPotential Mitigations")
+                print("--------------------")
+                print(selected_cwe[6])
+        else:
+            print("CWE-"+cwe,"not found")
+    except (Exception, psycopg2.DatabaseError) as error :
+        print ("Error while Querying Database")
+        #print ("Error while Querying Database", error)
+        print("Hint: Use just the number of teh CWE you are looking for, e.g.: 169")
+    finally:
+        if(con):
+            cur.close()
+            con.close()
+            print("\r\nPostgreSQL connection is closed")
+
+def cwe(myuser,mypassword,myhost,database,filename):
+    con = None
+    try:
+        con = connect(dbname=database, user=myuser, host = myhost, password=mypassword)
+        cur = con.cursor()
+        with open(filename, 'r') as f:
+            print("importing cwe")
+            reader = csv.reader(f)
+            header_row = next(reader)
+            cwe = io.StringIO()
+            writer_cwe=csv.writer(cwe)
+            writer_cwe.writerow(["cwe_id","name","description","extended_decription","modes_of_introduction","common_consequences","potential_mitigations"])
+            for row in reader:
+                writer_cwe.writerow([row[0],row[1],row[4],row[5],row[11],row[14],row[16]])
+            cwe.seek(0)
+            cwe.readline()
+            cur.copy_expert("""COPY cwe(cwe_id, name, description, extended_description, modes_of_introduction, common_consequences, potential_mitigations) FROM STDIN WITH (FORMAT CSV)""", cwe)
+            con.commit()
     except (Exception, psycopg2.DatabaseError) as error :
         print ("Error while Querying Database", error)
     finally:
@@ -385,39 +543,59 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--parse',  action="store_true", dest="process", default=False, help="Process downloaded CVEs.")
     parser.add_argument('-d', '--download',  action="store_true", dest="download", default=False, help="Download CVEs.")
     parser.add_argument('-y', '--year',  action="store", dest="year", default=False, help="The year for which CVEs shall be downloaded (e.g. 2019)")
-    parser.add_argument('-csv', '--cvs_files',  action="store_true", dest="csv_file", default=False, help="Create CSVs files.")
+    parser.add_argument('-csv', '--csv_files',  action="store_true", dest="csv_file", default=False, help="Create CSVs files.")
+    parser.add_argument('-icwe', '--import_cwe',  action="store", dest="icwe", default=None, help="Import CWE from the provided filename into the database.")
     parser.add_argument('-idb', '--import_to_db',  action="store_true", dest="idb", default=False, help="Import CVEs into a database.")
     parser.add_argument('-i', '--input', action="store", default = 'nvd/', dest="input", help="The directory where NVD json files will been downloaded, and the one from where they will be parsed (default: nvd/")
     parser.add_argument('-o', '--output', action="store", default = 'results/', dest="results", help="The directory where the csv files will be stored (default: results/")
     parser.add_argument('-u', '--user',  action="store", dest="user", default="postgres", help="The user to connect to the database.")
     parser.add_argument('-ow', '--owner',  action="store", dest="owner", default=None, help="The owner of the database (if different from the connected user).")
     parser.add_argument('-ps', '--password',  action="store", dest="password", default="", help="The password to connect to the database.")
-    parser.add_argument('-host', '--host',  action="store", dest="host", default="localhost", help="The host or IP of the database server.")
+    parser.add_argument('-host', '--host',  action="store", dest="host", default=None, help="The hostname or IP for which you want to list the applicable vulnerabilities")
+    parser.add_argument('-server', '--server',  action="store", dest="server", default="localhost", help="The hostname or IP of the database server.")
     parser.add_argument('-db', '--database',  action="store", dest="database", default="postgres", help="The name of the database.")
     parser.add_argument('-cd', '--create_database',  action="store_true", dest="cd", default=False, help="Create the database")
     parser.add_argument('-dd', '--drop_database',  action="store_true", dest="dd", default=False, help="Drop the database")
     parser.add_argument('-ct', '--create_tables',  action="store_true", dest="ct", default=False, help="Create the tables of the database")
     parser.add_argument('-tr', '--truncate_cves_tables',  action="store_true", dest="tr", default=False, help="Truncate the CVEs-related tables")
-    parser.add_argument('-cve', '--cvs_number',  action="store", dest="cve", default=None, help="Print info for a CVE (CVSS score and other)")
+    parser.add_argument('-cve', '--cve_number',  action="store", dest="cve", default=None, help="Print info for a CVE (CVSS score and other)")
+    parser.add_argument('-cpe', '--cpe',  action="store", dest="cpe", default=None, help="List all the CVEs for the selected CPE(s)")
+    parser.add_argument('-cwe', '--cwe',  action="store", dest="cwe", default=None, help="Provide info for the requested CWE)")
     parser.add_argument('-sc', '--score',  action="store", dest="score", default=0.0, help="Use base score of a CVE as a selection criterion")
-    parser.add_argument('-dt', '--date',  action="store", dest="date", default=1999, help="Use publication date of a CVE as a selection criterion")
+    parser.add_argument('-dt', '--date',  action="store", dest="date", default=False, help="Use publication date of a CVE as a selection criterion")
     values = parser.parse_args()
 
     if not values.owner:
         values.owner=values.user
     if values.dd:
-        drop_database(values.user,values.password,values.host,values.database)
+        print("Dropping the database")
+        drop_database(values.user,values.password,values.server,values.database)
     if values.cd:
-        create_database(values.user,values.password,values.host,values.database,values.owner)
+        print("Creating the database")
+        create_database(values.user,values.password,values.server,values.database,values.owner)
     if values.ct:
-        create_tables(values.user,values.password,values.host,values.database)
+        print("Creating the necessary schema of the database")
+        create_tables(values.user,values.password,values.server,values.database)
     if values.download:
+        print("Downloading NIST NVD")
         download_cves(values.input,values.year)
-    if values.process:
-        process_cves(values.input, values.results, values.csv_file, values.idb,values.user,values.password,values.host,values.database)
     if values.tr: 
-        truncate_database(values.user,values.password,values.host,values.database)
-    if values.cve:
-        execute_query(values.user,values.password,values.host,values.database,values.cve,values.score,values.date)
-    if not values.input and not values.process and not values.dd and not values.cd and not values.ct and not values.download and not values.process and not values.tr and not values.cve:
+        print("Truncating NIST NVD imported data")
+        truncate_database(values.user,values.password,values.server,values.database)
+    if values.process:
+        print("Processing downloaded data")
+        process_cves(values.input, values.results, values.csv_file, values.idb,values.user,values.password,values.server,values.database)
+    if values.icwe:
+        print("Importing CWE data")
+        cwe(values.user,values.password,values.host,values.database,values.icwe)
+    if values.cpe:
+        print("CPE queries")
+        execute_query_cpe(values.user,values.password,values.host,values.database,values.cpe,str(values.score),values.date,values.csv_file,values.results)
+    elif values.cwe:
+        print("CWE queries")
+        execute_query_cwe(values.user,values.password,values.host,values.database,values.cwe)
+    elif values.cve or float(values.score) > 0.0: 
+        print("CVE queries")
+        execute_query(values.user,values.password,values.host,values.database,values.cve,values.score,values.date,values.csv_file,values.results)
+    elif not values.download and not values.process and not values.cd and not values.ct and not values.dd and not values.tr and not values.icwe:
         print("Choose an option (check --help)")
