@@ -376,9 +376,10 @@ def execute_query(myuser,mypassword,myhost,database,cve,score,date,csv_on,output
             print("-------------------------------------------")
             for i in selected_cve:
                 cwe=i[0].lstrip('CWE-')
-                cur.execute("SELECT name FROM cwe WHERE cwe_id = "+cwe)
-                selected_cve2 = cur.fetchone()
-                print(i[0], selected_cve2[0])
+                if cwe.isdigit():
+                    cur.execute("SELECT name FROM cwe WHERE cwe_id = "+cwe)
+                    selected_cve2 = cur.fetchone()
+                    print(i[0], selected_cve2[0])
             cur.execute("SELECT cpe23uri FROM cpe WHERE cve LIKE '%"+cve+"%' AND vulnerable='True'")
             selected_cve = cur.fetchall()
             print("\r\nRelated Common Platform Enumerations (CPE)")
