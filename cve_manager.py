@@ -196,13 +196,13 @@ def process_cves(directory, results, csv_file, import_db,myuser,mypassword,myhos
         else:
             print ("Directory %s already exists" % results)
 
-        file_cve_related_problems = open(results+"cve_related_problems.csv","w")
+        file_cve_related_problems = open(results+"cve_related_problems.csv","w",encoding='utf8')
         writer_cwe=csv.writer(file_cve_related_problems,delimiter="\t")
 
-        file_cvss_score = open(results+"cve_cvss_scores.csv","w")
+        file_cvss_score = open(results+"cve_cvss_scores.csv","w",encoding='utf8')
         writer_cvss=csv.writer(file_cvss_score ,delimiter="\t")
 
-        file_cpes = open(results+"cve_cpes.csv","w")
+        file_cpes = open(results+"cve_cpes.csv","w",encoding='utf8')
         writer_cpe=csv.writer(file_cpes,delimiter="\t")
 
         writer_cpe.writerow(["CVE","cpe23Uri","Vulnerable"])
@@ -309,7 +309,7 @@ def process_cves(directory, results, csv_file, import_db,myuser,mypassword,myhos
             sys.exit(1)
         cur = conn.cursor()
         filename = results+"cve_cvss_scores.csv"
-        with open(filename, 'r') as f:
+        with open(filename, 'r',encoding='utf8') as f:
             print("importing CVSS")
             filedata = f.read()
             filedata = filedata.replace("\\","\\\\")
