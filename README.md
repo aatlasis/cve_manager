@@ -14,22 +14,22 @@ Usage examples:
   ./cve_manager.py -d -p -csv
   
 - Create a postgresql database to host the downloaded CVEs:
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -ow <new_owner of database> -cd
+  ./cve_manager.py -u <myuser> host <hostname or IP> -db <database_name> -ow <new_owner of database> -cd
 
 - Create the tables and views at the database:
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -ct
+  ./cve_manager.py -u <myuser> -host <hostname or IP> -db <database_name> -ct
 
 - Import all data into the created database (requires the download, parse and sdtore as CSV files first, as explained above):
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -idb -p
+  ./cve_manager.py -u <myuser> -host <hostname or IP> -db <database_name> -idb -p
 
 - Query for a specific CVE:
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -cve 2019-2434
+  ./cve_manager.py -u <myuser> -host <hostname or IP> -db <database_name> -cve 2019-2434
     
 - Truncate the contents of all tables (required if you want to repeat the import process so as to update the data): 
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -tr
+  ./cve_manager.py -u <myuser> -host <hostname or IP> -db <database_name> -tr
   
 - Delete the database (remove it completely):
-  ./cve_manager.py -u <myuser> -ps <mypassword> -host <hostname or IP> -db <database_name> -dd
+  ./cve_manager.py -u <myuser> -host <hostname or IP> -db <database_name> -dd
 
 Complete list of supported arguments:
 
@@ -57,11 +57,8 @@ Complete list of supported arguments:
   -u USER, --user USER  The user to connect to the database.
   
   -ow OWNER, --owner OWNER
-                        The owner of the database (if different from the connected user).
-                        
-  -ps PASSWORD, --password PASSWORD
-                        The password to connect to the database.
-                        
+                        The owner of the database (if different from the connected user).                     
+                      
   -host HOST, --host HOST
                         The host or IP of the database server.
                         
