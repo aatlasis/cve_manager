@@ -1,6 +1,13 @@
 Changelog
 ---------
 
+2021 Feb 21
+
+Bug fixes
+ UTF encodign to avoid parsing errors
+ CWE processing
+Prompts for a password (instead of askign it in the command line)
+
 2020 Aug 05
 
 A bug in importing data was corrected. 
