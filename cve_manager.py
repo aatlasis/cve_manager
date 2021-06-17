@@ -286,6 +286,15 @@ def process_cves(directory, results, csv_file, import_db,myuser,myhost,database)
                 cpe_list_length=len(cves['configurations']['nodes'])
                 if (cpe_list_length !=0):
                     for i in range(0,cpe_list_length):
+                        # bug fixing Issue #9
+                        # CPE from node was not imported if child CPE's had been defined. Now CPE(s) from node AND child are imported.
+                        # Removed also redundant import implementation of node CPE(s)
+                        if('cpe_match' in cves['configurations']['nodes'][i]):
+                            cpes = cves['configurations']['nodes'][i]['cpe_match']
+                            for cpe in cpes:
+                                if csv_file:
+                                    if 'cpe23Uri' in cpe:
+                                        writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
                         if 'children' in cves['configurations']['nodes'][i]:
                             cpe_child_list_length=len(cves['configurations']['nodes'][i]['children'])
                             if (cpe_child_list_length !=0):
@@ -296,23 +305,6 @@ def process_cves(directory, results, csv_file, import_db,myuser,myhost,database)
                                             if csv_file:
                                                 if 'cpe23Uri' in cpe:
                                                     writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
-                        else:
-                            if('cpe_match' in cves['configurations']['nodes'][i]):
-                                cpes = cves['configurations']['nodes'][i]['cpe_match']
-                                for cpe in cpes:
-                                    if csv_file:
-                                        if 'cpe23Uri' in cpe:
-                                            writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
-                            else:
-                                cpe_inner_list_length=len(cves['configurations']['nodes'])
-                                if (cpe_inner_list_length!=0):
-                                    for k in range(0,cpe_inner_list_length):
-                                        if('cpe_match' in cves['configurations']['nodes'][i]):
-                                            cpes = cves['configurations']['nodes'][i]['cpe_match']
-                                            for cpe in cpes:
-                                                if csv_file:
-                                                    if 'cpe23Uri' in cpe:
-                                                        writer_cpe.writerow([cve,cpe['cpe23Uri'],str(cpe['vulnerable'])])
             except Exception as e:
                 print(str(e),cves['configurations']) #check it
         file_cve_related_problems.close()
