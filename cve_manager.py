@@ -215,13 +215,13 @@ def process_cves(directory, results, csv_file, import_db,myuser,myhost,database)
         else:
             print ("Directory %s already exists" % results)
 
-        file_cve_related_problems = open(results+"cve_related_problems.csv","w",encoding='utf8')
+        file_cve_related_problems = open(results+"cve_related_problems.csv","w",encoding='utf8',newline='')
         writer_cwe=csv.writer(file_cve_related_problems,delimiter="\t")
 
-        file_cvss_score = open(results+"cve_cvss_scores.csv","w",encoding='utf8')
+        file_cvss_score = open(results+"cve_cvss_scores.csv","w",encoding='utf8',newline='')
         writer_cvss=csv.writer(file_cvss_score ,delimiter="\t")
 
-        file_cpes = open(results+"cve_cpes.csv","w",encoding='utf8')
+        file_cpes = open(results+"cve_cpes.csv","w",encoding='utf8',newline='')
         writer_cpe=csv.writer(file_cpes,delimiter="\t")
 
         writer_cpe.writerow(["CVE","cpe23Uri","Vulnerable"])
